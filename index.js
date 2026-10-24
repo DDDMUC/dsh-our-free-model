@@ -56,12 +56,31 @@ import { addSavings, describeSavingsTotal, emptySavings, saverConfig, savingsPer
 import { CAVEMAN_LEVELS, PONYTAIL_LEVELS } from './src/token-saver/prompts.js'
 import { OPTIMIZATIONS } from './src/local-optimize.js'
 import { createModelRuntime, createRuntimeStores } from './src/core/runtime.js'
+import z from '@deepseek-ai/schemastery'
 
 export { fromOpenAiMessages } from './src/core/completion.js'
 import { buildStats } from './src/core/stats.js'
 export { buildStats }
 
 export const name = 'our-free-model'
+
+/**
+ * The plugin's settings namespace, and the only reason this route can hold a row
+ * on 设置 → Models at all.
+ *
+ * That page marks a provider configured when the namespace its directory entry
+ * names resolves — ours declares `settingsPath: []`, so the namespace root is the
+ * config (dsh-client-ui-settings-models store.js: `configured: namespace !== void 0
+ * && (settingsPath.length === 0 || ...)`).
+ *
+ * A namespace exists only for a schema the host can edit **live** (dsh-settings
+ * `volatileForm` returns undefined otherwise), and a volatile *object* short-
+ * circuits that check. It is deliberately fieldless: this plugin's own settings
+ * live in ~/.dsh/our-free-model/settings.json, so any field declared here would be
+ * a second, unread copy of a switch that already exists. The namespace is an
+ * anchor, not a form.
+ */
+export const Config = z.object({}).volatile()
 
 /** The installed package directory — the self-updater and hot reload operate here. */
 const PKG_URL = new URL('./', import.meta.url)
@@ -1635,6 +1654,8 @@ function sanitizeSettings(patch, current) {
   positive('probeIntervalMinutes', 15)
   positive('feedPollMinutes', 30)
   positive('defaultMaxTokens', 32768)
+  // Boolean, never a string: the picker reads this to decide what to advertise.
+  if (next.hidden !== undefined) next.hidden = next.hidden === true
   if (next.updateCheckHours !== undefined) {
     // Zero is a real answer here: it means "stop checking for updates".
     const hours = Number(next.updateCheckHours)
@@ -1872,7 +1893,7 @@ function createApiRoutes(deps) {
       if (method === 'POST' && routePath === '/settings') {
         const patch = await readJson(req)
         const current = deps.settings.get()
-        const next = sanitizeSettings({ ...current, ...pick(patch, ['enabled', 'exposeRegionModels', 'probeIntervalMinutes', 'defaultMaxTokens', 'announcementAck', 'feedUrl', 'feedPollMinutes', 'notifyOs', 'updateCheckHours', 'autoReloadWatch']) }, current)
+        const next = sanitizeSettings({ ...current, ...pick(patch, ['enabled', 'hidden', 'exposeRegionModels', 'probeIntervalMinutes', 'defaultMaxTokens', 'announcementAck', 'feedUrl', 'feedPollMinutes', 'notifyOs', 'updateCheckHours', 'autoReloadWatch']) }, current)
         if (patch.forward !== undefined) {
           const forward = { ...(current.forward ?? {}), ...pick(patch.forward, ['enabled', 'host', 'port']) }
           // The listener spends this machine's lane, and a routable bind address
@@ -2230,6 +2251,7 @@ function clientSnippets({ forward, key, lanKey, models }) {
 function publicSettings(settings, forwardInfo, egressInfo) {
   return {
     enabled: settings.enabled !== false,
+    hidden: settings.hidden === true,
     exposeRegionModels: settings.exposeRegionModels !== false,
     probeIntervalMinutes: settings.probeIntervalMinutes ?? 15,
     defaultMaxTokens: settings.defaultMaxTokens ?? 32768,

@@ -106,6 +106,10 @@ export class FreeModelAdapter {
   /** Models this route advertises right now. */
   async listModels(provider) {
     const state = this.deps.state()
+    // Hidden from the Models page: advertise nothing, and the composer's model
+    // picker drops the empty provider group. The region lane is part of the same
+    // product, so it goes with the main route.
+    if (state.settings?.hidden === true) return []
     const ids = new Set(state.membership[provider] ?? [])
     return state.catalog
       .filter(entry => ids.has(entry.id))

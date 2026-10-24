@@ -5931,6 +5931,73 @@ window.__ModuleLoader__.load({
         return () => {}
       }, 'our-free-model: reload notice')
 
+    /**
+     * The `OFM` chip and the hide switch on this plugin's own Models row.
+     *
+     * That row exists because the plugin declares a settings namespace (Config with
+     * a volatile field). The official page keys its card seat by that namespace —
+     * `renderSlot('settings.models.provider-card', …, { entryKey: row.entry.settingsNs })`
+     * — and provider-hub fills the same seat only for `llm-pi-ai` / `llm-deepseek`,
+     * so `our-free-model` has to be filled here or the row carries neither a badge
+     * nor a control.
+     *
+     * Hiding goes through the plugin's own /settings route: the host half reads
+     * `hidden` in `listModels`, so the composer's picker group disappears on the
+     * next refresh while every account, key and model stays configured.
+     */
+    function OfmCardControls(props) {
+      const route = props.provider && props.provider.provider
+      const zh = /^(zh|cn)/i.test(String(props.locale ?? ''))
+      const copy = zh
+        ? { hide: '隐藏', show: '显示', hintHide: '从输入框的模型选择器里移除本插件的全部模型；配置与账号都不动', hintShow: '恢复本插件的模型', refused: '宿主没有接受 hidden（宿主仍是旧代码，需重启 dsh web）' }
+        : { hide: 'Hide', show: 'Show', hintHide: 'Remove all of this plugin’s models from the composer picker; nothing is deleted', hintShow: 'Bring this plugin’s models back', refused: 'the host did not accept `hidden` — it is still running older code, restart dsh web' }
+      const [hidden, setHidden] = useState(undefined)
+      const [busy, setBusy] = useState(false)
+      const [error, setError] = useState('')
+      useEffect(() => {
+        let alive = true
+        api('/summary')
+          .then(payload => { if (alive) setHidden(payload?.settings?.hidden === true) })
+          .catch(() => { if (alive) setHidden(false) })
+        return () => { alive = false }
+      }, [])
+      if (!route) return null
+      const isHidden = hidden === true
+      // The response carries the settings the host actually stored, so it — not an
+      // optimistic guess — is what the label follows. A host that predates `hidden`
+      // answers 200 with the field missing; saying so beats a button that flips and
+      // silently does nothing.
+      const toggle = async () => {
+        setBusy(true)
+        setError('')
+        try {
+          const payload = await post('/settings', { hidden: !isHidden })
+          const echoed = payload?.settings?.hidden
+          if (echoed === undefined) { setError(copy.refused); return }
+          setHidden(echoed === true)
+        } catch (failure) {
+          setError(String(failure?.message ?? failure))
+        } finally { setBusy(false) }
+      }
+      // Same theme tokens the page's own links use, so the chip and the button read
+      // as page furniture rather than as an unstyled embed.
+      const link = 'var(--dsw-alias-link, #2f6fec)'
+      return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 6 } },
+        h('span', {
+          title: 'dsh-our-free-model',
+          style: { display: 'inline-block', fontSize: 11, lineHeight: 1.4, padding: '1px 7px', borderRadius: 999, border: '1px solid currentColor', color: link, whiteSpace: 'nowrap', opacity: 0.9, cursor: 'help' },
+        }, 'OFM'),
+        h('button', {
+          type: 'button',
+          disabled: busy || hidden === undefined,
+          title: isHidden ? copy.hintShow : copy.hintHide,
+          style: { background: 'none', border: 'none', color: link, cursor: 'pointer', fontSize: 12, padding: 0 },
+          onClick: toggle,
+        }, busy ? '…' : (isHidden ? copy.show : copy.hide)),
+        error === '' ? null : h('span', { style: { color: 'var(--dsw-alias-state-error-primary, #c0392b)', fontSize: 12 } }, error),
+      )
+    }
+
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: 'our-free-model',
@@ -5938,6 +6005,14 @@ window.__ModuleLoader__.load({
         label: () => t('nav'),
         locale: NS,
       }, props => h(SettingsPage, { ...props, locale: localeTag(ctx), ctx })))
+
+      // The Models page asks every plugin to fill the seat keyed by its own
+      // settings namespace; this is the row the route gets from declaring one.
+      ctx.slots.inject('settings.models.provider-card', () => ctx.slots.register({
+        name: 'settings.models.provider-card',
+        key: 'our-free-model',
+        locale: NS,
+      }, props => h(OfmCardControls, { ...props, locale: localeTag(ctx) })))
 
       ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
         name: 'settings.onboarding',
