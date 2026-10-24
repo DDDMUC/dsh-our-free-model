@@ -56,6 +56,7 @@ const suites = [
   ['magpie-engine', 'magpie-engine-test.mjs', []],
   ['engine-transport', 'engine-transport-test.mjs', []],
   ['magpie-models', 'magpie-models-test.mjs', []],
+  ['workspace-language', 'workspace-language-test.mjs', []],
   ['magpie-plugin', 'magpie-plugin-test.mjs', []],
   ['workbench', 'workbench-test.mjs', []],
   ['workbench-library', 'workbench-library-test.mjs', []],

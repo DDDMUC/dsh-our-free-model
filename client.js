@@ -6854,6 +6854,17 @@ window.__ModuleLoader__.load({
         name === 'settings' ? h('circle', { cx: 12, cy: 12, r: 3 }) : null)
     }
 
+    // The embedded engine follows DSH rather than its separate saved/system
+    // preference. Use the engine's supported locale IDs, not an arbitrary tag.
+    function workspaceLocale(tag) {
+      const value = String(tag || document.documentElement.lang || 'en').trim().toLowerCase().replaceAll('_', '-')
+      if (/^zh-(tw|hk|mo|hant)(-|$)/.test(value)) return 'zh-TW'
+      if (/^zh(-|$)/.test(value)) return 'zh'
+      if (/^ja(-|$)/.test(value)) return 'ja'
+      if (/^de(-|$)/.test(value)) return 'de'
+      return 'en'
+    }
+
     function ModelWorkspace({ t, summary }) {
       const [state, setState] = useState('starting')
       const [error, setError] = useState('')
@@ -6963,7 +6974,7 @@ window.__ModuleLoader__.load({
         toolbar,
         error ? h('div', { className: 'ofm_callout ofm_error', role: 'alert' }, error) : null,
         state === 'ready'
-          ? h('iframe', { ref: frame, className: 'ofm_engineframe', src: `${API}/engine/ui/?mode=window&view=providers`, title: t('engine.title'),
+          ? h('iframe', { ref: frame, className: 'ofm_engineframe', src: `${API}/engine/ui/?mode=window&view=providers&locale=${workspaceLocale(t.locale)}`, title: t('engine.title'),
             allow: 'clipboard-write', referrerPolicy: 'same-origin', onLoad: event => {
               syncTheme()
               const doc = event.currentTarget.contentDocument
